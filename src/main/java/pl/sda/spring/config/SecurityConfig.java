@@ -9,16 +9,24 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import pl.sda.spring.service.UserDetailsService;
 
 @Configuration
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
+
+    private final UserDetailsService userDetailsService;
+
+    public SecurityConfig(UserDetailsService userDetailsService) {
+        this.userDetailsService = userDetailsService;
+    }
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.csrf().disable()
                 .authorizeRequests()
                 .antMatchers("/login").permitAll()
-                .antMatchers("/admin").hasRole("ADMIN")
+                .antMatchers("/h2-console/**").permitAll()
+                .antMatchers("/admin").hasAuthority("ADMIN")
                 .antMatchers("/**").authenticated()
                 .and()
                 .formLogin().loginPage("/login")
@@ -29,16 +37,20 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .exceptionHandling()
                 .accessDeniedPage("/accessDenied")
                 .and()
+                .headers().frameOptions().disable()
+                .and()
                 .logout()
                 .logoutSuccessUrl("/login?logout");
     }
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.inMemoryAuthentication()
-                .withUser("admin").password(passwordEncoder().encode("admin")).roles("USER", "ADMIN")
-                .and()
-                .withUser("user").password(passwordEncoder().encode("user")).roles("USER");
+        auth.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder());
+    }
+
+    @Bean
+    AuthenticationSuccessHandler successHandler() {
+        return new SavedRequestAwareAuthenticationSuccessHandler();
     }
 
     @Bean
@@ -46,8 +58,4 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         return new BCryptPasswordEncoder();
     }
 
-    @Bean
-    AuthenticationSuccessHandler successHandler() {
-        return new SavedRequestAwareAuthenticationSuccessHandler();
-    }
 }
